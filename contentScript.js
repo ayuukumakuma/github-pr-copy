@@ -1,71 +1,133 @@
-const observer = new MutationObserver(() => {
-  const headerElement = document.querySelector(
-    "#partial-discussion-header > div.gh-header-show > div > h1",
-  );
+const HEADER_SELECTORS = [
+  "#partial-discussion-header h1",
+  "h1.gh-header-title",
+  "main h1",
+];
 
-  let titleElement;
-  if (headerElement && !document.querySelector(".copy-pr-title-button")) {
-    titleElement = document.querySelector(
-      "#partial-discussion-header > div.gh-header-show > div > h1 > bdi",
-    );
+const ACTIONS_CONTAINER_CLASS = "copy-pr-actions";
+const COPY_BUTTON_CLASS = "copy-pr-title-button";
+const COPIED_BUTTON_CLASS = "is-copied";
+const FEEDBACK_STYLE_ID = "copy-pr-feedback-style";
+const COPIED_LABEL = "✓ Copied";
+const FEEDBACK_DURATION_MS = 1000;
+const buttonRestoreTimers = new WeakMap();
 
-    const title = titleElement.textContent;
-    const url = window.location.href;
+const ensureFeedbackStyle = () => {
+  if (document.getElementById(FEEDBACK_STYLE_ID)) {
+    return;
+  }
 
-    const titleCopyButton = createButton({ title: "Title", text: title });
-    const urlCopyButton = createButton({ title: "Url", text: url });
-    const textUrlCopyButton = createButton({
+  const styleElement = document.createElement("style");
+  styleElement.id = FEEDBACK_STYLE_ID;
+  styleElement.textContent = `
+    .${COPY_BUTTON_CLASS}.${COPIED_BUTTON_CLASS} {
+      border-color: var(--fgColor-success, #1a7f37);
+      box-shadow: inset 0 0 0 1px var(--fgColor-success, #1a7f37);
+      color: var(--fgColor-success, #1a7f37);
+    }
+  `;
+
+  (document.head ?? document.body).appendChild(styleElement);
+};
+
+const getHeaderElement = () => {
+  for (const selector of HEADER_SELECTORS) {
+    const headerElement = document.querySelector(selector);
+    if (headerElement) {
+      return headerElement;
+    }
+  }
+
+  return null;
+};
+
+const getTitleText = (headerElement) => {
+  const bdiElement = headerElement.querySelector("bdi");
+  return (bdiElement?.textContent ?? headerElement.textContent ?? "").trim();
+};
+
+const ensureButtons = () => {
+  ensureFeedbackStyle();
+
+  const headerElement = getHeaderElement();
+  if (!headerElement) {
+    return;
+  }
+
+  if (headerElement.querySelector(`.${ACTIONS_CONTAINER_CLASS}`)) {
+    return;
+  }
+
+  const title = getTitleText(headerElement);
+  if (!title) {
+    return;
+  }
+
+  const url = window.location.href;
+  const container = document.createElement("span");
+  container.classList.add(ACTIONS_CONTAINER_CLASS);
+
+  const buttons = [
+    createButton({ title: "Title", text: title }),
+    createButton({ title: "Url", text: url }),
+    createButton({
       title: "Textlink",
       text: `[${title}](${url})`,
-    });
+    }),
+  ];
 
-    headerElement.appendChild(titleCopyButton);
-    headerElement.appendChild(urlCopyButton);
-    headerElement.appendChild(textUrlCopyButton);
+  buttons.forEach((button) => {
+    container.appendChild(button);
+  });
+  headerElement.appendChild(container);
+};
+
+const observer = new MutationObserver(ensureButtons);
+
+const showCopiedFeedback = (button, initialLabel) => {
+  const existingTimer = buttonRestoreTimers.get(button);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
   }
-});
+
+  button.textContent = COPIED_LABEL;
+  button.classList.add(COPIED_BUTTON_CLASS);
+
+  const restoreTimer = setTimeout(() => {
+    button.textContent = initialLabel;
+    button.classList.remove(COPIED_BUTTON_CLASS);
+    buttonRestoreTimers.delete(button);
+  }, FEEDBACK_DURATION_MS);
+
+  buttonRestoreTimers.set(button, restoreTimer);
+};
 
 const createButton = ({ title, text }) => {
   const button = document.createElement("button");
+  const initialLabel = title;
   button.textContent = title;
   button.style.marginLeft = "10px";
-  button.classList.add("btn", "btn-sm", "copy-pr-title-button");
+  button.classList.add("btn", "btn-sm", COPY_BUTTON_CLASS);
   button.onclick = () => {
-    if (text) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          showTooltip(button, "copied!");
-        })
-        .catch((err) => {
-          console.error(err);
-        });
+    if (!text) {
+      return;
     }
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        showCopiedFeedback(button, initialLabel);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
   };
   return button;
-};
-
-const showTooltip = (element, message) => {
-  const tooltip = document.createElement("div");
-  tooltip.textContent = message;
-  tooltip.style.position = "absolute";
-  tooltip.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
-  tooltip.style.color = "#fff";
-  tooltip.style.padding = "5px";
-  tooltip.style.fontSize = "12px";
-  tooltip.style.width = "60px";
-  tooltip.style.textAlign = "center";
-  tooltip.style.fontWeight = "200";
-  tooltip.style.borderRadius = "5px";
-  tooltip.style.top = `${element.offsetTop - 32}px`;
-  tooltip.style.left = `${element.offsetLeft + element.offsetWidth / 2 - 30}px`;
-  document.body.appendChild(tooltip);
-  setTimeout(() => {
-    tooltip.remove();
-  }, 1000);
 };
 
 observer.observe(document.body, {
   childList: true,
   subtree: true,
 });
+
+ensureButtons();
