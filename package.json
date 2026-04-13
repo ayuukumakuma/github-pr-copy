@@ -1,0 +1,17 @@
+{
+  "name": "github-pr-copy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.3",
+    "vite-plus": "^0.1.16",
+    "wxt": "^0.20.18"
+  },
+  "packageManager": "pnpm@10.18.0"
+}

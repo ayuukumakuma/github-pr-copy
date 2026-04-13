@@ -1,1 +1,10 @@
 .DS_Store
+.agents/
+node_modules/
+.pnpm-store/
+.output/
+.wxt/
+dist/
+*.zip
+web-ext.config.ts
+build/
