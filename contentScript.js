@@ -3,6 +3,15 @@ const HEADER_SELECTORS = [
   "h1.gh-header-title",
   "main h1",
 ];
+const TITLE_SELECTORS = [
+  "[data-testid='issue-title']",
+  ".markdown-title",
+  "bdi",
+];
+const TITLE_NOISE_PATTERNS = [
+  /^#\d+$/,
+  /^Edit title$/i,
+];
 
 const ACTIONS_CONTAINER_CLASS = "copy-pr-actions";
 const COPY_BUTTON_CLASS = "copy-pr-title-button";
@@ -42,8 +51,33 @@ const getHeaderElement = () => {
 };
 
 const getTitleText = (headerElement) => {
-  const bdiElement = headerElement.querySelector("bdi");
-  return (bdiElement?.textContent ?? headerElement.textContent ?? "").trim();
+  for (const selector of TITLE_SELECTORS) {
+    const titleElement = headerElement.querySelector(selector);
+    const titleText = titleElement?.textContent?.trim();
+    if (titleText) {
+      return titleText;
+    }
+  }
+
+  const textNodes = Array.from(headerElement.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent?.trim() ?? "")
+    .filter(Boolean)
+    .filter((text) => !isTitleNoise(text));
+
+  return textNodes.join(" ").trim();
+};
+
+const isTitleNoise = (text) => {
+  return TITLE_NOISE_PATTERNS.some((pattern) => pattern.test(text));
+};
+
+const sanitizeTitleForMarkdownLink = (title) => {
+  return title
+    .replaceAll("[", "【")
+    .replaceAll("]", "】")
+    .replaceAll("(", "（")
+    .replaceAll(")", "）");
 };
 
 const ensureButtons = () => {
@@ -64,6 +98,7 @@ const ensureButtons = () => {
   }
 
   const url = window.location.href;
+  const textlinkTitle = sanitizeTitleForMarkdownLink(title);
   const container = document.createElement("span");
   container.classList.add(ACTIONS_CONTAINER_CLASS);
 
@@ -72,7 +107,7 @@ const ensureButtons = () => {
     createButton({ title: "Url", text: url }),
     createButton({
       title: "Textlink",
-      text: `[${title}](${url})`,
+      text: `[${textlinkTitle}](${url})`,
     }),
   ];
 
